@@ -1,0 +1,42 @@
+# syntax=docker/dockerfile:1.12.0
+FROM docker.io/nginxinc/nginx-unprivileged:${UPSTREAM_TAG} AS nginx-image
+
+# We use the same image as target image for the build for simplicity, even though we need to change user
+FROM nginx-image AS builder
+
+# hadolint ignore=DL3002
+USER root
+
+SHELL ["/bin/ash", "-eo", "pipefail", "-c"]
+
+# Install build dependencies
+# hadolint ignore=DL3018
+RUN apk add --no-cache \
+    build-base gcc make ca-certificates curl linux-headers \
+    pcre-dev zlib-dev openssl-dev
+
+# Retrieve Nginx source and download VTS module
+RUN NGINX_VERSION_DETECTED=$(nginx -v 2>&1 | grep -Eo 'nginx/[0-9]+\.[0-9]+\.[0-9]+' | sed 's|nginx/||') && \
+    curl -fsSL "http://nginx.org/download/nginx-${NGINX_VERSION_DETECTED}.tar.gz" -o nginx.tar.gz && \
+    tar xzf nginx.tar.gz && mv "nginx-${NGINX_VERSION_DETECTED}" /nginx-src && rm nginx.tar.gz && \
+    \
+    curl -fsSL https://github.com/vozlt/nginx-module-vts/archive/refs/tags/v0.2.4.tar.gz -o vts.tar.gz && \
+    mkdir -p /usr/src/nginx-module-vts && \
+    tar xzf vts.tar.gz -C /usr/src/nginx-module-vts --strip-components=1 && \
+    rm vts.tar.gz
+
+# Compile VTS module, re-using the exact same configuration args as base nginx
+WORKDIR /nginx-src
+RUN NGINX_CONFIGURE_ARGS=$(nginx -V 2>&1 | grep 'configure arguments:' | sed 's/configure arguments: //') && \
+    eval "./configure $NGINX_CONFIGURE_ARGS --add-dynamic-module=/usr/src/nginx-module-vts" && \
+    make modules
+
+FROM nginx-image AS production
+
+COPY --from=builder /nginx-src/objs/ngx_http_vhost_traffic_status_module.so /usr/lib/nginx/modules/
+
+RUN mkdir -p /etc/nginx/modules-enabled && \
+    echo "load_module modules/ngx_http_vhost_traffic_status_module.so;" > /etc/nginx/modules-enabled/vts.conf
+
+USER nginx
+ENTRYPOINT ["/usr/sbin/nginx"]
