@@ -129,11 +129,9 @@ jobs:
           image: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}:${{ matrix.upstream_tag }}
           format: sarif
           outputFile: kubescape-results.sarif
-        continue-on-error: true
 
       - name: Upload Kubescape scan results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: kubescape-results.sarif
           category: kubescape-${{ matrix.image }}-${{ matrix.upstream_tag }}
-        if: always()
