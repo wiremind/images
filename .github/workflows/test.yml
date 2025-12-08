@@ -77,7 +77,7 @@ jobs:
           failure-threshold: warning
 
       - name: Upload Hadolint results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: hadolint-${{ matrix.image }}.sarif
           category: hadolint-${{ matrix.image }}
