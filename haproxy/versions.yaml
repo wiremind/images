@@ -1,5 +1,4 @@
 versions:
-  - "2.8.16-alpine" # renovate: datasource=docker depName=haproxy
   - "2.8.16-trixie" # renovate: datasource=docker depName=haproxy
   - "3.0.12-trixie" # renovate: datasource=docker depName=haproxy
   - "3.1.10-trixie" # renovate: datasource=docker depName=haproxy
