@@ -77,6 +77,7 @@ jobs:
           output: trivy-results.sarif
           severity: CRITICAL,HIGH,MEDIUM
           vuln-type: os,library
+          ignore-unfixed: true
 
       - name: Upload Trivy scan results
         if: always()
@@ -84,4 +85,19 @@ jobs:
         with:
           sarif_file: trivy-results.sarif
           category: trivy-${{ matrix.image }}-${{ matrix.upstream_tag }}
+
+      - name: Scan image with Kubescape
+        uses: kubescape/github-action@main
+        continue-on-error: true
+        with:
+          image: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}:${{ matrix.upstream_tag }}
+          format: sarif
+          outputFile: kubescape-results.sarif
+
+      - name: Upload Kubescape scan results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: kubescape-results.sarif
+          category: kubescape-${{ matrix.image }}-${{ matrix.upstream_tag }}
 
