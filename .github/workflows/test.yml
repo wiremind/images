@@ -64,6 +64,9 @@ jobs:
       fail-fast: false
       matrix:
         image: ${{ fromJson(needs.detect-changes.outputs.images) }}
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

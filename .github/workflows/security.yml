@@ -1,0 +1,82 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # Run weekly on Sundays at 00:00 UTC
+    - cron: "0 0 * * 0"
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  discover-images:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      has_images: ${{ steps.matrix.outputs.has_images }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build matrix from all images
+        id: matrix
+        run: |
+          # Find all directories with versions.yaml
+          MATRIX_INCLUDES=()
+
+          for versions_file in */versions.yaml; do
+            if [ -f "$versions_file" ]; then
+              image=$(dirname "$versions_file")
+
+              # Read versions from yaml file (strip comments)
+              VERSIONS=$(yq -r '.versions[]' "$versions_file" | sed 's/#.*//' | xargs)
+              for version in $VERSIONS; do
+                MATRIX_INCLUDES+=("{\"image\":\"$image\",\"upstream_tag\":\"$version\"}")
+              done
+            fi
+          done
+
+          if [ ${#MATRIX_INCLUDES[@]} -eq 0 ]; then
+            echo "has_images=false" >> $GITHUB_OUTPUT
+            echo 'matrix={"include":[]}' >> $GITHUB_OUTPUT
+          else
+            MATRIX_JSON=$(printf '%s\n' "${MATRIX_INCLUDES[@]}" | jq -s -c '{include: .}')
+            echo "has_images=true" >> $GITHUB_OUTPUT
+            echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
+            echo "Matrix: $MATRIX_JSON"
+          fi
+
+  scan:
+    needs: discover-images
+    if: needs.discover-images.outputs.has_images == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover-images.outputs.matrix) }}
+
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Scan image with Kubescape
+        uses: kubescape/github-action@main
+        continue-on-error: true
+        with:
+          image: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}:${{ matrix.upstream_tag }}
+          format: sarif
+          outputFile: kubescape-results.sarif
+
+      - name: Upload Kubescape scan results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: kubescape-results.sarif
+          category: kubescape-${{ matrix.image }}-${{ matrix.upstream_tag }}
+
