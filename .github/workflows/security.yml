@@ -1,7 +1,9 @@
 name: Security Scan
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Build and Push Images"]
+    types: [completed]
     branches: [main]
   schedule:
     # Run weekly on Sundays at 00:00 UTC
@@ -13,6 +15,8 @@ env:
 
 jobs:
   discover-images:
+    # Only run if build workflow succeeded (or on schedule/manual trigger)
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
@@ -65,18 +69,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Scan image with Kubescape
-        uses: kubescape/github-action@main
-        continue-on-error: true
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@0.33.1
         with:
-          image: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}:${{ matrix.upstream_tag }}
+          image-ref: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}:${{ matrix.upstream_tag }}
           format: sarif
-          outputFile: kubescape-results.sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH,MEDIUM
+          vuln-type: os,library
 
-      - name: Upload Kubescape scan results
+      - name: Upload Trivy scan results
         if: always()
         uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: kubescape-results.sarif
-          category: kubescape-${{ matrix.image }}-${{ matrix.upstream_tag }}
+          sarif_file: trivy-results.sarif
+          category: trivy-${{ matrix.image }}-${{ matrix.upstream_tag }}
 
