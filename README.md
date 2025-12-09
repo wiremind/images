@@ -6,25 +6,25 @@ Custom & opensource container images built and maintained by Wiremind, published
 
 | Image | Description | Registry |
 |-------|-------------|----------|
-| **haproxy** | HAProxy with lua-json for haproxy-ingress auth support | `ghcr.io/wiremind/haproxy` |
+| **haproxy-debian** | HAProxy with lua-json for haproxy-ingress auth support | `ghcr.io/wiremind/haproxy-debian` |
 | **nginx-vts-exporter** | Nginx with VTS (Virtual host Traffic Status) module | `ghcr.io/wiremind/nginx-vts-exporter` |
 
 ## Usage
 
 ```bash
 # Pull an image
-docker pull ghcr.io/wiremind/haproxy:3.2.9-trixie
+docker pull ghcr.io/wiremind/haproxy-debian:3.2.9-trixie
 docker pull ghcr.io/wiremind/nginx-vts-exporter:1.28.0-alpine
 
 # Use in Dockerfile
-FROM ghcr.io/wiremind/haproxy:3.2.9-trixie
+FROM ghcr.io/wiremind/haproxy-debian:3.2.9-trixie
 ```
 
 ## Available Tags
 
 Each image supports multiple versions. Check the `versions.yaml` file in each image directory for available tags.
 
-### HAProxy
+### HAProxy-debian
 - `3.3.0-trixie`, `3.2.9-trixie`, `3.1.10-trixie`, `3.0.12-trixie`, `2.8.16-trixie`
 
 ### Nginx VTS Exporter
