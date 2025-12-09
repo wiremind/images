@@ -37,6 +37,11 @@
         "versions"
       ],
       "commitMessagePrefix": "deps(versions):"
+    },
+    {
+      "matchDatasources": ["docker"],
+      "matchUpdateTypes": ["major", "minor"],
+      "enabled": false
     }
   ],
   "customManagers": [
