@@ -1,0 +1,4 @@
+# Fails build and not needed
+app-editors/dav
+# This block build, just mask it (no NLS)
+app-text/po4a
