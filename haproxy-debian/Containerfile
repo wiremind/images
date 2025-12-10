@@ -1,14 +1,19 @@
 # syntax=docker/dockerfile:1.20.0
+
 ARG UPSTREAM_TAG
 FROM docker.io/library/haproxy:${UPSTREAM_TAG} AS haproxy
 
 USER root
+SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
 
-# Needed to use auth-url & auth-signin with haproxy-ingress
-RUN apt-get update && apt-get upgrade -y --no-install-recommends && \
-    apt-get install -y --no-install-recommends lua-json=1.3.4-3 && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+# lua-json is needed to use auth-url & auth-signin with haproxy-ingress
+RUN <<-EOF
+    apt-get update
+    apt-get upgrade -y --no-install-recommends
+    apt-get install -y --no-install-recommends lua-json=1.3.4-3
+    apt-get clean
+    rm -rf /var/lib/apt/lists/*
+EOF
 
-# Rootless
 USER haproxy
 ENTRYPOINT ["/usr/local/sbin/haproxy"]
