@@ -1,0 +1,6 @@
+no-color: false
+strict-labels: true
+disable-ignore-pragma: false
+trustedRegistries:
+  - docker.io
+  - ghcr.io

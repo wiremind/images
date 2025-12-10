@@ -95,6 +95,9 @@ jobs:
       attestations: write
 
     steps:
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v4.0.0
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -114,27 +117,65 @@ jobs:
         id: commit-ts
         run: echo "ts=$(git log -1 --pretty=%ct ${{ matrix.image }})" >> $GITHUB_OUTPUT
 
+      - name: Docker metadata
+        id: docker_meta
+        uses: docker/metadata-action@v5.10.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}
+          tags: |
+            type=raw,value=${{ matrix.upstream_tag }}
+          # See: https://github.com/opencontainers/image-spec/blob/main/annotations.md
+          labels: |
+            org.opencontainers.image.vendor=${{ github.repository_owner }}
+            org.opencontainers.image.authors=${{ github.repository_owner }}
+
       - name: Build and push Docker image
-        id: push
+        id: build-and-push
         uses: docker/build-push-action@v6
         env:
           SOURCE_DATE_EPOCH: ${{ steps.commit-ts.outputs.ts }}
         with:
           context: ./${{ matrix.image }}
           file: ./${{ matrix.image }}/Containerfile
-          push: ${{ github.event_name == 'push' }}
+          push: true
+          platforms: linux/amd64
           build-args: |
             UPSTREAM_TAG=${{ matrix.upstream_tag }}
-          tags: |
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}:${{ matrix.upstream_tag }}
-          labels: |
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.version=${{ matrix.upstream_tag }}
+          tags: ${{ steps.docker_meta.outputs.tags }}
+
+      # https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable
+      - name: Sign image with a key
+        run: |
+          echo "Cosign version:"
+          cosign version
+
+          images=""
+          for tag in ${TAGS}; do
+            images+="${tag}@${DIGEST} "
+          done
+
+          echo "Signing images: ${images}"
+          cosign sign --recursive --record-creation-timestamp \
+                      --yes \
+                      --key env://COSIGN_PRIVATE_KEY \
+                      -a "repo=${{ github.server_url }}/${{ github.repository }}" \
+                      -a "workflow=${{ github.workflow }}" \
+                      -a "ref=${{ github.ref }}" \
+                      -a "sha=${{ github.sha }}" \
+                      ${images}
+
+          # echo "Verifying signatures for ${images}"
+          # cosign verify --key cosign.pub ${images}
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+          TAGS: ${{ steps.docker_meta.outputs.tags }}
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+          DIGEST: ${{ steps.build-and-push.outputs.digest }}
 
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@v3
         with:
           subject-name: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}
-          subject-digest: ${{ steps.push.outputs.digest }}
+          subject-digest: ${{ steps.build-and-push.outputs.digest }}
           push-to-registry: true
