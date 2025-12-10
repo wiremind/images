@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.12.1
+# syntax=docker/dockerfile:1.20.0
 ARG UPSTREAM_TAG
 FROM docker.io/nginxinc/nginx-unprivileged:${UPSTREAM_TAG} AS nginx-image
 
