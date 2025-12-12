@@ -1,0 +1,18 @@
+# syntax=docker/dockerfile:1.20.0
+
+FROM --platform=${BUILDPLATFORM} ghcr.io/wiremind/base:20251130T164554Z@sha256:ff94a2b751d0da23f89f0e248eaa28eb9a2f159353dae0de47e2df1781531a88 AS builder
+
+# hadolint ignore=DL3002
+USER root
+SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
+
+ARG UPSTREAM_TAG
+RUN USE="static -pam" emerge -1 --root=/rootfs =sys-apps/busybox-${UPSTREAM_TAG}
+
+
+FROM --platform=${BUILDPLATFORM} scratch
+
+WORKDIR /
+COPY --from=builder /rootfs/bin/busybox /busybox
+
+ENTRYPOINT ["/busybox"]
