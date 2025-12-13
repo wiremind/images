@@ -1,18 +1,18 @@
 # syntax=docker/dockerfile:1.20.0
 
 # This stage will download, verify and extract the stage3 tarball
-FROM docker.io/library/debian:trixie AS builder
+FROM --platform=${BUILDPLATFORM} docker.io/library/debian:trixie AS builder
 
 # hadolint ignore=DL3002
 USER root
-SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
 WORKDIR /gentoo
+SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
 
-ARG ARCH=amd64
+ARG TARGETARCH
 ARG UPSTREAM_TAG
 ARG TIMESTAMP="20251130T164554Z"
-ARG DIST="https://distfiles.gentoo.org/releases/${ARCH}/autobuilds/current-stage3-${ARCH}-${UPSTREAM_TAG}"
-ARG STAGE3="stage3-${ARCH}-${UPSTREAM_TAG}-${TIMESTAMP}.tar.xz"
+ARG DIST="https://distfiles.gentoo.org/releases/${TARGETARCH}/autobuilds/current-stage3-${TARGETARCH}-${UPSTREAM_TAG}"
+ARG STAGE3="stage3-${TARGETARCH}-${UPSTREAM_TAG}-${TIMESTAMP}.tar.xz"
 ARG STAGE3_URL="${DIST}/${STAGE3}"
 
 # See https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Stage
@@ -53,9 +53,7 @@ EOF
 
 
 # This stage will make a base gentoo toolchain workable
-FROM scratch AS toolchain-nocustomized
-
-ARG ARCH=amd64
+FROM --platform=${BUILDPLATFORM} scratch AS toolchain-nocustomized
 
 WORKDIR /
 COPY --from=builder /gentoo/ /
@@ -65,12 +63,10 @@ USER root
 SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
 
 # Portage settings
-RUN <<-EOF
-    # XXX COPY does not preserve empty directories...
-    mkdir -p /var/db/repos/gentoo /var/{log,tmp}/portage
+# XXX COPY does not preserve empty directories...
+RUN mkdir -p /var/db/repos/gentoo /var/{log,tmp}/portage
 
-    # Download portage tree
-    emerge-webrsync --quiet
-EOF
+# Download portage tree
+ONBUILD RUN emerge-webrsync
 
 ENTRYPOINT ["/bin/bash"]

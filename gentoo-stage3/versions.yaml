@@ -1,2 +1,3 @@
 versions:
   - "hardened-systemd"
+  - "musl-hardened"
