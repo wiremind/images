@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.20.0
 
 ARG UPSTREAM_TAG
-FROM docker.io/library/haproxy:${UPSTREAM_TAG} AS haproxy
+FROM --platform=${BUILDPLATFORM} docker.io/library/haproxy:${UPSTREAM_TAG} AS haproxy
 
 USER root
 SHELL ["/bin/bash", "-exo", "pipefail", "-c"]

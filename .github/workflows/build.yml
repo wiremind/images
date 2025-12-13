@@ -1,6 +1,10 @@
 name: Build and Push Images
 
 on:
+  pull_request:
+    paths:
+      - "**/Containerfile"
+      - "**/versions.yaml"
   push:
     branches: [main]
     paths:

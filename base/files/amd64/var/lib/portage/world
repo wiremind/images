@@ -1,0 +1,5 @@
+app-portage/eix
+app-portage/gentoolkit
+app-text/tree
+dev-lang/go
+dev-vcs/git

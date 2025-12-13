@@ -1,0 +1,40 @@
+# syntax=docker/dockerfile:1.20.0
+
+ARG UPSTREAM_TAG
+FROM --platform=${BUILDPLATFORM} ghcr.io/wiremind/gentoo-stage3:${UPSTREAM_TAG}@sha256:459c5a9bd69af1cb5b39732eef157288030835cc79f0473d9ceaef0090e34a12 AS toolchain-customized
+
+# hadolint ignore=DL3002
+USER root
+SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
+
+# Copy our overrides
+ARG BUILDARCH
+COPY files/${BUILDARCH}/ /
+
+# Rebuild
+# hadolint ignore=SC2046
+RUN <<-EOF
+    # Clean things (fail builds silently...)
+    emerge --rage-clean app-text/po4a || true
+
+    # Set our wanted profile
+    eselect profile set default/linux/${BUILDARCH}/23.0/no-multilib/hardened/systemd
+
+    # Rebuild the toolchain
+    emerge -1 sys-devel/gcc dev-build/libtool sys-devel/binutils
+    . /etc/profile
+
+    # Rebuild all with new toolchain
+    emerge -e @system @world
+
+    # Clean up & rebuild dependencies
+    emerge -c && revdep-rebuild
+
+    # rm webrsync to use git instead
+    rm -rf /var/db/repos/gentoo/*
+EOF
+
+# Sync portage tree with git
+ONBUILD RUN emerge --sync --quiet
+
+ENTRYPOINT ["/bin/bash"]
