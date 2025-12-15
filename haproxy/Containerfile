@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.20.0
 
-FROM --platform=${BUILDPLATFORM} ghcr.io/wiremind/base:hardened-systemd@sha256:beddc7ad484357f0db0e3fd1fbfe00720436f595fda0778f9675c4da1aaa44be AS builder
+FROM --platform=${BUILDPLATFORM} ghcr.io/wiremind/base:hardened-systemd@sha256:40d2459e98bb2a4b9646b000e2d6c7af52b482f44864829647f3a5457f5691c1 AS builder
 
 # hadolint ignore=DL3002
 USER root
