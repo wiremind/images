@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1.20.0
 
 # hadolint global ignore=DL3008
+ARG UPSTREAM_TAG
 FROM --platform=${BUILDPLATFORM} docker.io/debian:${UPSTREAM_TAG}
 USER root
 
