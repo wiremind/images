@@ -6,6 +6,7 @@ USER root
 
 ARG TARGETARCH
 RUN <<-EOF
+	set -e
 	apt-get update -y
 	apt-get upgrade -y --no-install-recommends
 	apt-get install coreutils -y --no-install-recommends
@@ -16,6 +17,7 @@ RUN <<-EOF
 	KUBECTL_VERSION="$(curl -Ls https://dl.k8s.io/release/stable.txt)"
 	curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${TARGETARCH}/kubectl"
 	curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${TARGETARCH}/kubectl.sha256"
+	sed -i 's|$|  kubectl|' kubectl.sha256
 	sha256sum --check ./kubectl.sha256
 	chmod +x ./kubectl
 	mv ./kubectl /usr/local/bin/kubectl
