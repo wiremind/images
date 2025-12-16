@@ -1,0 +1,2 @@
+versions:
+  - "trixie-slim" # renovate: datasource=docker depName=debian
