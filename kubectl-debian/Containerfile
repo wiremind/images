@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1.20.0
 
+# hadolint global ignore=DL3008
 FROM --platform=${BUILDPLATFORM} docker.io/debian:${UPSTREAM_TAG}
 USER root
 
@@ -7,16 +8,14 @@ ARG TARGETARCH
 RUN <<-EOF
 	apt-get update -y
 	apt-get upgrade -y --no-install-recommends
-	# hadolint ignore=DL3008
 	apt-get install coreutils -y --no-install-recommends
-	# hadolint ignore=DL3008
 	apt-get install curl -y
 	apt-get clean
 	rm -rf /var/lib/apt/lists/*
 	useradd -m kubectluser
 	KUBECTL_VERSION="$(curl -Ls https://dl.k8s.io/release/stable.txt)"
 	curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${TARGETARCH}/kubectl"
-	curl -LO "https://dl.k8s.io/${KUBECTL_VERSION}/bin/linux/${TARGETARCH}/kubectl.sha256"
+	curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${TARGETARCH}/kubectl.sha256"
 	sha256sum --check ./kubectl.sha256
 	chmod +x ./kubectl
 	mv ./kubectl /usr/local/bin/kubectl
