@@ -1,2 +1,3 @@
 versions:
-  - "trixie-slim" # renovate: datasource=docker depName=debian
+  - "v1.34.3" # renovate: datasource=docker depName=kubernetes/kubectl
+  - "v1.35.0" # renovate: datasource=docker depName=kubernetes/kubectl
