@@ -14,7 +14,7 @@ RUN <<-EOF
 	apt-get install curl -y
 	apt-get clean
 	rm -rf /var/lib/apt/lists/*
-	useradd -m kubectluser
+	useradd -m -u 1001 kubectluser
 	KUBECTL_VERSION="$(curl -Ls https://dl.k8s.io/release/stable.txt)"
 	curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${TARGETARCH}/kubectl"
 	curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${TARGETARCH}/kubectl.sha256"
