@@ -16,15 +16,12 @@ ARG STAGE3="stage3-${TARGETARCH}-${UPSTREAM_TAG}-${TIMESTAMP}.tar.xz"
 ARG STAGE3_URL="${DIST}/${STAGE3}"
 
 # See https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Stage
+# hadolint ignore=DL3008
 RUN <<-EOF
     # Install dependencies
     apt-get update
     apt-get upgrade -y
-    apt-get install -y --no-install-recommends \
-        ca-certificates=20250419 \
-        curl=8.14.1-2+deb13u2 \
-        gnupg=2.4.7-21 \
-        xz-utils=5.8.1-1
+    apt-get install -y --no-install-recommends ca-certificates curl gnupg xz-utils
 
     # Setup GPG
     # See https://www.gentoo.org/downloads/signatures/
