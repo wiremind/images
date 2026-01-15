@@ -1,0 +1,10 @@
+.venv/
+.uv-cache/
+.uv-python/
+__pycache__/
+*.pyc
+.env
+.env.*
+data/
+.git/
+.gitignore
