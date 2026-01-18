@@ -1,93 +1,119 @@
 # Wiremind Container Images
 
-Custom & opensource container images built and maintained by Wiremind, published to GitHub Container Registry (ghcr.io).
+Custom container images built and maintained by Wiremind, published to GitHub Container Registry.
 
 ## Available Images
 
 | Image | Description | Registry |
-|-------|-------------|----------|
-| **haproxy-debian** | HAProxy with lua-json for haproxy-ingress auth support | `ghcr.io/wiremind/haproxy-debian` |
+| ----- | ----------- | -------- |
+| **haproxy** | HAProxy with lua-json for haproxy-ingress auth support | `ghcr.io/wiremind/haproxy` |
 | **nginx-vts-exporter** | Nginx with VTS (Virtual host Traffic Status) module | `ghcr.io/wiremind/nginx-vts-exporter` |
+| **kubectl** | Kubectl CLI | `ghcr.io/wiremind/kubectl` |
+| **buildx** | Docker Buildx CLI | `ghcr.io/wiremind/buildx` |
+| **gentoo-stage3** | Gentoo stage3 base image | `ghcr.io/wiremind/gentoo-stage3` |
 
 ## Usage
 
 ```bash
 # Pull an image
-docker pull ghcr.io/wiremind/haproxy-debian:3.2.9-trixie
-docker pull ghcr.io/wiremind/nginx-vts-exporter:1.28.0-alpine
+docker pull ghcr.io/wiremind/haproxy:3.3.1-debian13
 
 # Use in Dockerfile
-FROM ghcr.io/wiremind/haproxy-debian:3.2.9-trixie
+FROM ghcr.io/wiremind/haproxy:3.3.1-debian13
 ```
-
-## Available Tags
-
-Each image supports multiple versions. Check the `versions.yaml` file in each image directory for available tags.
-
-### HAProxy-debian
-- `3.3.0-trixie`, `3.2.9-trixie`, `3.1.10-trixie`, `3.0.12-trixie`, `2.8.16-trixie`
-
-### Nginx VTS Exporter
-- `1.28.0-alpine`
 
 ## Project Structure
 
-```
-├── <image-name>/
-│   ├── Containerfile      # Container build instructions
-│   └── versions.yaml      # Upstream versions to build
+```text
+├── images/
+│   └── <image-name>/
+│       ├── docker-bake.hcl       # Bake config (versions, tags, targets)
+│       └── Containerfile*        # One or more Containerfiles
 ├── .github/workflows/
-│   ├── test.yml           # PR: Hadolint linting
-│   ├── build.yml          # Main: Build, push, attest
-│   └── security.yml       # Main: Trivy & Kubescape scans
-└── renovate.json          # Automated dependency updates
+│   ├── bake.yml                  # Build, push, sign with Cosign
+│   ├── test.yml                  # PR: Hadolint linting
+│   └── security.yml              # Trivy & Kubescape scans
+└── renovate.json                 # Automated dependency updates
 ```
 
 ## Adding a New Image
 
-1. Create a new directory with your image name:
-   ```bash
-   mkdir my-image
+1. Create directory: `mkdir -p images/my-image`
+
+2. Create `docker-bake.hcl`:
+
+   ```hcl
+   variable "REGISTRY" {
+     default = "ghcr.io/wiremind"
+   }
+
+   variable "VERSIONS" {
+     default = ["1.0.0", "1.1.0"]
+   }
+
+   group "default" {
+     targets = ["my-image"]
+   }
+
+   target "my-image" {
+     name       = "my-image-${replace(v, ".", "-")}"
+     matrix     = { v = VERSIONS }
+     context    = "."
+     dockerfile = "Containerfile"
+     tags       = ["${REGISTRY}/my-image:${v}"]
+     args       = { UPSTREAM_TAG = v }
+     platforms  = ["linux/amd64"]
+   }
    ```
 
-2. Create a `Containerfile` using `UPSTREAM_TAG` for the base image:
+3. Create `Containerfile`:
+
    ```dockerfile
-   # syntax=docker/dockerfile:1.12.0
-   ARG UPSTREAM_TAG
-   FROM some-base-image:${UPSTREAM_TAG}
-   
-   # Your customizations here
+   # syntax=docker.io/docker/dockerfile-upstream:1.20.0
+   ARG UPSTREAM_TAG=1.0.0
+   FROM docker.io/library/base:${UPSTREAM_TAG}
+   # Your customizations
    ```
 
-3. Create a `versions.yaml` with the upstream tags to build:
-   ```yaml
-   versions:
-     - "1.0.0-alpine" # renovate: datasource=docker depName=some-base-image
-   ```
+4. Push to `main` - CI will automatically build and push all versions.
 
-4. Commit and push to `main` - the CI will automatically build and push all versions.
+## Local Development
+
+```bash
+# Preview what will be built
+docker buildx bake -f images/haproxy/docker-bake.hcl --print
+
+# Build locally (no push)
+docker buildx bake -f images/haproxy/docker-bake.hcl
+
+# Build and push
+docker buildx bake -f images/haproxy/docker-bake.hcl --push
+
+# Lint Containerfiles
+hadolint images/my-image/Containerfile
+```
 
 ## CI/CD Workflows
 
 | Workflow | Trigger | Actions |
-|----------|---------|---------|
+| -------- | ------- | ------- |
+| **bake.yml** | Push to main | Build changed images, push to GHCR, sign with Cosign |
 | **test.yml** | Pull Request | Hadolint linting on changed Containerfiles |
-| **build.yml** | Push to main | Build, push to GHCR, generate attestations |
 | **security.yml** | After build + weekly | Trivy & Kubescape vulnerability scans |
 
-### Security Scanning
+## Security
 
-All images are scanned with:
-- **[Trivy](https://github.com/aquasecurity/trivy)** - CVE detection in OS packages and libraries
-- **[Kubescape](https://github.com/kubescape/kubescape)** - Container security best practices
+All images are:
+
+- **Signed** with [Cosign](https://github.com/sigstore/cosign) using keyless signing
+- **Scanned** with [Trivy](https://github.com/aquasecurity/trivy) and [Kubescape](https://github.com/kubescape/kubescape)
+- **Reproducible** using `SOURCE_DATE_EPOCH` from git commit timestamps
 
 Results are available in the [Security tab](../../security/code-scanning).
 
 ## Dependency Updates
 
-[Renovate](https://github.com/renovatebot/renovate) automatically creates PRs when:
-- Upstream base image versions are updated
-- GitHub Actions versions are updated
+[Renovate](https://github.com/renovatebot/renovate) automatically creates PRs for version updates.
 
 ## License
 
