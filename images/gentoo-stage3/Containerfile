@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.20.0
+# syntax=docker.io/docker/dockerfile-upstream:1.20.0
 
 # This stage will download, verify and extract the stage3 tarball
 FROM --platform=${BUILDPLATFORM} docker.io/library/debian:trixie AS builder
@@ -9,19 +9,19 @@ WORKDIR /gentoo
 SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
 
 ARG TARGETARCH
-ARG UPSTREAM_TAG
+# Default is overridden by docker-bake.hcl
+ARG UPSTREAM_TAG=hardened-systemd
 ARG TIMESTAMP="20260111T160052Z"
-ARG DIST="https://distfiles.gentoo.org/releases/${TARGETARCH}/autobuilds/current-stage3-${TARGETARCH}-${UPSTREAM_TAG}"
-ARG STAGE3="stage3-${TARGETARCH}-${UPSTREAM_TAG}-${TIMESTAMP}.tar.xz"
-ARG STAGE3_URL="${DIST}/${STAGE3}"
+ENV DIST="https://distfiles.gentoo.org/releases/${TARGETARCH}/autobuilds/current-stage3-${TARGETARCH}-${UPSTREAM_TAG}"
+ENV STAGE3="stage3-${TARGETARCH}-${UPSTREAM_TAG}-${TIMESTAMP}.tar.xz"
+ENV STAGE3_URL="${DIST}/${STAGE3}"
 
 # See https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Stage
 # hadolint ignore=DL3008
 RUN <<-EOF
     # Install dependencies
-    apt-get update
-    apt-get upgrade -y
-    apt-get install -y --no-install-recommends ca-certificates curl gnupg xz-utils
+    apt-get update -q
+    apt-get install -yq --no-install-recommends ca-certificates curl gnupg xz-utils
 
     # Setup GPG
     # See https://www.gentoo.org/downloads/signatures/

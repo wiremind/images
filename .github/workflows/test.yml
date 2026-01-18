@@ -3,57 +3,57 @@ name: Test Containerfiles
 on:
   pull_request:
     paths:
-      - "**/Containerfile"
-      - "**/versions.yaml"
+      - "images/**"
 
 jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      images: ${{ steps.filter.outputs.images }}
+      containerfiles: ${{ steps.filter.outputs.containerfiles }}
       has_changes: ${{ steps.filter.outputs.has_changes }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Get changed files
+      - name: Get changed images
         id: changed-files
         uses: tj-actions/changed-files@v47
         with:
-          files: |
-            **/Containerfile
-            **/versions.yaml
+          files: images/**
           dir_names: true
-          dir_names_exclude_current_dir: true
-          dir_names_max_depth: 1
+          dir_names_max_depth: 2
 
-      - name: Build images list
+      - name: Build Containerfiles list
         id: filter
         run: |
           CHANGED_DIRS="${{ steps.changed-files.outputs.all_changed_files }}"
 
           if [ -z "$CHANGED_DIRS" ]; then
             echo "has_changes=false" >> $GITHUB_OUTPUT
-            echo "images=[]" >> $GITHUB_OUTPUT
+            echo "containerfiles=[]" >> $GITHUB_OUTPUT
             exit 0
           fi
 
-          # Convert space-separated to JSON array, filtering out .github
-          IMAGES=()
+          # Find all Containerfile* in changed image directories
+          CONTAINERFILES=()
           for dir in $CHANGED_DIRS; do
-            if [[ "$dir" != ".github"* ]] && [[ "$dir" != "." ]]; then
-              IMAGES+=("$dir")
+            if [[ "$dir" == images/* ]]; then
+              for cf in "$dir"/Containerfile*; do
+                if [ -f "$cf" ]; then
+                  CONTAINERFILES+=("$cf")
+                fi
+              done
             fi
           done
 
-          if [ ${#IMAGES[@]} -eq 0 ]; then
+          if [ ${#CONTAINERFILES[@]} -eq 0 ]; then
             echo "has_changes=false" >> $GITHUB_OUTPUT
-            echo "images=[]" >> $GITHUB_OUTPUT
+            echo "containerfiles=[]" >> $GITHUB_OUTPUT
           else
-            JSON_ARRAY=$(printf '%s\n' "${IMAGES[@]}" | jq -R . | jq -s -c .)
+            JSON_ARRAY=$(printf '%s\n' "${CONTAINERFILES[@]}" | jq -R . | jq -s -c .)
             echo "has_changes=true" >> $GITHUB_OUTPUT
-            echo "images=$JSON_ARRAY" >> $GITHUB_OUTPUT
-            echo "Detected images: ${IMAGES[*]}"
+            echo "containerfiles=$JSON_ARRAY" >> $GITHUB_OUTPUT
+            echo "Detected Containerfiles: ${CONTAINERFILES[*]}"
           fi
 
   hadolint:
@@ -63,7 +63,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: ${{ fromJson(needs.detect-changes.outputs.images) }}
+        containerfile: ${{ fromJson(needs.detect-changes.outputs.containerfiles) }}
     permissions:
       contents: read
       security-events: write
@@ -74,14 +74,14 @@ jobs:
       - name: Run Hadolint
         uses: hadolint/hadolint-action@v3.3.0
         with:
-          dockerfile: ${{ matrix.image }}/Containerfile
+          dockerfile: ${{ matrix.containerfile }}
           format: sarif
-          output-file: hadolint-${{ matrix.image }}.sarif
+          output-file: hadolint-results.sarif
           failure-threshold: warning
 
       - name: Upload Hadolint results
         uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: hadolint-${{ matrix.image }}.sarif
-          category: hadolint-${{ matrix.image }}
+          sarif_file: hadolint-results.sarif
+          category: hadolint-${{ hashFiles(matrix.containerfile) }}
         if: always()

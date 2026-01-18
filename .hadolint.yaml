@@ -2,5 +2,6 @@ no-color: false
 strict-labels: true
 disable-ignore-pragma: false
 trustedRegistries:
+  - dhi.io
   - docker.io
   - ghcr.io
