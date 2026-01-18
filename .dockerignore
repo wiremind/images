@@ -1,21 +1,44 @@
+# Git
 .git
 .github
+
+# Docker bake (not needed in build context)
+docker-bake.hcl
+*.hcl
+versions.yaml
+
+# Config files
+.dockerignore
+.containerignore
+.hadolint.yaml
+renovate.json
+cosign.pub
+LICENSE
+AGENTS.md
+
+# Editor/temp files
 *.tmp
 *~
-Dockerfile*
-Containerfile*
-.dockerignore
-renovate.json
-.containerignore
-*.md
 *.log
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Documentation
+*.md
+
+# Build artifacts
+/build
+/dist
 node_modules
 __pycache__
+
+# Secrets
 .aws
 .env
 .env.local
-/build
-/dist
-.DS_Store
-Thumbs.db
+.env.*
+
+# Tests
 *test*

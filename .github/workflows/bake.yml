@@ -1,0 +1,128 @@
+name: Build with Bake
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "images/**"
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      images: ${{ steps.changes.outputs.images }}
+      has_changes: ${{ steps.changes.outputs.has_changes }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Get changed images
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Manual trigger: build all images
+            IMAGES=$(ls -d images/*/ 2>/dev/null | xargs -n1 basename | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          else
+            # Push trigger: only changed images
+            CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} -- images/ | cut -d/ -f2 | sort -u)
+            IMAGES=$(echo "$CHANGED" | grep -v '^$' | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          fi
+
+          if [ "$IMAGES" = "[]" ] || [ -z "$IMAGES" ]; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "images=[]" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "images=$IMAGES" >> $GITHUB_OUTPUT
+            echo "Images to build: $IMAGES"
+          fi
+
+  build:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJson(needs.detect-changes.outputs.images) }}
+
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Get SOURCE_DATE_EPOCH
+        id: source-date
+        run: |
+          SOURCE_DATE_EPOCH=$(git log -1 --format=%ct -- images/${{ matrix.image }})
+          echo "epoch=$SOURCE_DATE_EPOCH" >> $GITHUB_OUTPUT
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v4
+        with:
+          cosign-release: "v2.6.1"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Login to DHI
+        uses: docker/login-action@v3
+        with:
+          registry: dhi.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Build and push ${{ matrix.image }}
+        id: bake
+        uses: docker/bake-action@v6
+        env:
+          SOURCE_DATE_EPOCH: ${{ steps.source-date.outputs.epoch }}
+        with:
+          workdir: ./images/${{ matrix.image }}
+          files: docker-bake.hcl
+          push: true
+          set: |
+            *.cache-from=type=gha,scope=${{ matrix.image }}
+            *.cache-to=type=gha,mode=max,scope=${{ matrix.image }}
+
+      - name: Sign images with Cosign
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          METADATA='${{ steps.bake.outputs.metadata }}'
+
+          echo "$METADATA" | jq -r '
+            to_entries[] |
+            select(.value["containerimage.digest"]) |
+            "\(.value["image.name"])@\(.value["containerimage.digest"])"
+          ' | while read -r image_ref; do
+            echo "Signing: $image_ref"
+            cosign sign --yes --key env://COSIGN_PRIVATE_KEY \
+              -a "repo=${{ github.server_url }}/${{ github.repository }}" \
+              -a "ref=${{ github.ref }}" \
+              -a "sha=${{ github.sha }}" \
+              "$image_ref"
+          done

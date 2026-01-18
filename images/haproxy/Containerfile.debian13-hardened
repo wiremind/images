@@ -1,0 +1,61 @@
+# syntax=docker.io/docker/dockerfile-upstream:1.20.0
+
+ARG UPSTREAM_TAG=3.3.1-debian13
+FROM --platform=${BUILDPLATFORM} dhi.io/haproxy:${UPSTREAM_TAG}-dev AS builder
+
+# hadolint ignore=DL3002
+USER root
+SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
+
+# Default UID/GID for haproxy user
+ARG UID=99
+ARG GID=99
+
+ENV SYSTEM_DEPS="passwd"
+ENV PRODUCTION_DEPS="ca-certificates lua-json"
+
+# Setup user & group
+# hadolint ignore=DL3008
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+<<-EOF
+    apt-get update -q
+    apt-get install -yq --no-install-recommends ${SYSTEM_DEPS}
+
+    # Create haproxy user
+    groupadd --gid ${GID} haproxy
+    useradd --uid ${UID} --gid ${GID} --home-dir /var/lib/haproxy --create-home --shell /sbin/nologin haproxy
+EOF
+
+# Build rootfs for runtime
+# hadolint ignore=DL3008,SC2046
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+<<-EOF
+  # Download .deb packages for production dependencies and all their dependencies
+  apt-get download $(apt-cache depends --recurse --no-recommends --no-suggests --no-conflicts --no-breaks --no-replaces --no-enhances ${PRODUCTION_DEPS} | grep "^\w")
+
+  # Create directory for extracted system libraries
+  mkdir -p /tmp/rootfs
+
+  # Extract all .deb files to /tmp/rootfs (will be copied to production stage)
+  for file in *.deb; do dpkg -x "$file" /tmp/rootfs; done
+EOF
+
+
+FROM --platform=${BUILDPLATFORM} dhi.io/haproxy:${UPSTREAM_TAG}
+
+USER root
+
+# Copy haproxy user from builder stage
+COPY --from=builder /etc/passwd /etc/passwd
+COPY --from=builder /etc/group /etc/group
+COPY --from=builder /etc/shadow /etc/shadow
+COPY --from=builder /etc/gshadow /etc/gshadow
+
+USER haproxy
+
+# Copy system libs and deps
+COPY --from=builder /tmp/rootfs /
+
+ENTRYPOINT ["/opt/haproxy/bin/haproxy"]

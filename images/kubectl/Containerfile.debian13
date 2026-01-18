@@ -1,0 +1,39 @@
+# syntax=docker.io/docker/dockerfile-upstream:1.20.0
+
+FROM --platform=${BUILDPLATFORM} docker.io/debian:trixie-slim
+
+USER root
+SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
+
+# Default is overridden by docker-bake.hcl
+ARG UPSTREAM_TAG=v1.35.0
+ARG TARGETARCH
+
+# Default UID/GID for kubectl user
+ARG UID=1001
+ARG GID=1001
+
+# hadolint ignore=DL3008
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+<<-EOF
+	apt-get update -q
+	apt-get install -yq --no-install-recommends passwd coreutils curl ca-certificates jq
+
+	curl -sL --remote-name-all "https://dl.k8s.io/release/${UPSTREAM_TAG}/bin/linux/${TARGETARCH}/kubectl{,.sha256}"
+
+	sed -i 's|$|  kubectl|' kubectl.sha256
+	sha256sum --strict --check kubectl.sha256
+
+	chmod +x kubectl
+	mkdir -p /usr/local/bin
+	mv kubectl /usr/local/bin/kubectl
+
+	groupadd --gid ${GID} kubectluser
+	useradd --uid ${UID} --gid ${GID} --home-dir /home/kubectluser --create-home --shell /sbin/nologin kubectluser
+EOF
+
+USER kubectluser
+WORKDIR /home/kubectluser
+
+ENTRYPOINT ["/usr/local/bin/kubectl"]

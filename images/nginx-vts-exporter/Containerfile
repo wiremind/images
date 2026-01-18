@@ -1,6 +1,6 @@
-# syntax=docker/dockerfile:1.20.0
+# syntax=docker.io/docker/dockerfile-upstream:1.20.0
 
-ARG UPSTREAM_TAG
+ARG UPSTREAM_TAG=1.28.0-alpine
 FROM --platform=${BUILDPLATFORM} docker.io/nginxinc/nginx-unprivileged:${UPSTREAM_TAG} AS nginx-image
 
 

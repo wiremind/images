@@ -1,3 +1,0 @@
-versions:
-  - "1.28.0-alpine" # renovate: datasource=docker depName=nginxinc/nginx-unprivileged
-  - "1.29.3-alpine" # renovate: datasource=docker depName=nginxinc/nginx-unprivileged
