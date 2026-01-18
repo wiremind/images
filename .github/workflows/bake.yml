@@ -104,6 +104,7 @@ jobs:
         env:
           SOURCE_DATE_EPOCH: ${{ steps.source-date.outputs.epoch }}
         with:
+          source: .
           workdir: ./images/${{ matrix.image }}
           files: docker-bake.hcl
           push: true
