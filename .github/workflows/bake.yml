@@ -108,6 +108,8 @@ jobs:
           set: |
             *.cache-from=type=gha,scope=${{ matrix.image }}
             *.cache-to=type=gha,mode=max,scope=${{ matrix.image }}
+            *.attest=type=provenance,mode=max
+            *.attest=type=sbom
 
       - name: Sign images with Cosign
         env:
