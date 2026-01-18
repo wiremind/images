@@ -105,11 +105,13 @@ jobs:
           workdir: ./images/${{ matrix.image }}
           files: docker-bake.hcl
           push: true
+          pull: true
+          provenance: true
+          sbom: true
           set: |
             *.cache-from=type=gha,scope=${{ matrix.image }}
             *.cache-to=type=gha,mode=max,scope=${{ matrix.image }}
-            *.attest=type=provenance,mode=max
-            *.attest=type=sbom
+            *.output=type=image,oci-mediatypes=true,compression=zstd,compression-level=3,force-compression=true
 
       - name: Sign images with Cosign
         env:
