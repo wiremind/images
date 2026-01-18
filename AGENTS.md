@@ -4,49 +4,71 @@ This file provides guidance to [agents](https://agents.md/) when working with co
 
 ## Repository Purpose
 
-This repository contains custom container images built and maintained by Wiremind, published to GitHub Container Registry (ghcr.io/wiremind/).
+Custom container images built by Wiremind, published to GitHub Container Registry (ghcr.io/wiremind/).
 
 ## Architecture
 
-Each image lives in its own directory with two files:
+Images are in `images/<name>/` with:
 
-- `Containerfile` - Build instructions using `ARG UPSTREAM_TAG` for the base image version
-- `versions.yaml` - List of upstream tags to build, with Renovate annotations for automated updates
-
-The CI dynamically detects which images changed and builds all version combinations from `versions.yaml`.
+- `docker-bake.hcl` - Bake configuration with versions matrix and tags
+- `Containerfile*` - One or more Containerfiles (e.g., `Containerfile.debian13`, `Containerfile.debian13-hardened`)
 
 ## Adding a New Image
 
-1. Create directory: `mkdir my-image`
-2. Create `Containerfile` with `ARG UPSTREAM_TAG` and `FROM base:${UPSTREAM_TAG}`
-3. Create `versions.yaml` with Renovate annotation:
-   ```yaml
-   versions:
-     - "1.0.0-tag" # renovate: datasource=docker depName=base-image
+1. Create `images/my-image/docker-bake.hcl`:
+
+   ```hcl
+   variable "REGISTRY" {
+     default = "ghcr.io/wiremind"
+   }
+
+   variable "VERSIONS" {
+     default = ["1.0.0", "1.1.0"]
+   }
+
+   group "default" {
+     targets = ["my-image"]
+   }
+
+   target "my-image" {
+     name       = "my-image-${replace(v, ".", "-")}"
+     matrix     = { v = VERSIONS }
+     context    = "."
+     dockerfile = "Containerfile"
+     tags       = ["${REGISTRY}/my-image:${v}"]
+     args       = { UPSTREAM_TAG = v }
+     platforms  = ["linux/amd64"]
+   }
+   ```
+
+2. Create `images/my-image/Containerfile`:
+
+   ```dockerfile
+   # syntax=docker.io/docker/dockerfile-upstream:1.20.0
+   ARG UPSTREAM_TAG=1.0.0
+   FROM docker.io/library/base:${UPSTREAM_TAG}
+   # customizations
    ```
 
 ## Local Development
 
-Build an image locally:
 ```bash
-buildah build --build-arg UPSTREAM_TAG=3.2.9-trixie -f haproxy-debian/Containerfile --format=docker
-```
+# Build locally
+docker buildx bake -f images/haproxy/docker-bake.hcl --print  # dry-run
+docker buildx bake -f images/haproxy/docker-bake.hcl          # build
 
-Lint a Containerfile:
-```bash
-hadolint <image-name>/Containerfile
+# Lint
+hadolint images/my-image/Containerfile
 ```
 
 ## CI/CD Workflows
 
-- **test.yml** (PR): Runs Hadolint on changed Containerfiles
-- **build.yml** (main): Builds, pushes to GHCR, signs with Cosign, generates attestations
-- **security.yml** (post-build + weekly): Trivy and Kubescape vulnerability scans
+- **bake.yml** (main): Detects changed images, builds with bake, pushes, signs with Cosign
+- **test.yml** (PR): Hadolint on changed Containerfiles
+- **security.yml** (post-build + weekly): Trivy and Kubescape scans
 
-## Renovate Configuration
+## Key Files
 
-Renovate uses a custom regex manager to update versions in `versions.yaml` files. Only patch updates are auto-enabled for Docker images (major/minor disabled by default).
-
-## Hadolint Configuration
-
-Trusted registries: `docker.io`, `ghcr.io`. See `.hadolint.yaml` for settings.
+- `.github/workflows/bake.yml` - Main build workflow
+- `images/*/docker-bake.hcl` - Bake configs
+- `renovate.json` - Automated updates
